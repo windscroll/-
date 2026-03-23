@@ -3,354 +3,508 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dev-C++ - main.cpp</title>
+<title>Dev-C++ Chat Pro</title>
 <style>
-/* 全局样式：Dev-C++ 浅色风格 */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Courier New", Consolas, monospace;
-}
-body {
-  background: #ECE9D8;
-  color: #000;
-  height: 100vh;
-  overflow: hidden;
+*{margin:0;padding:0;box-sizing:border-box;font-family:Consolas,"Courier New",monospace}
+body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
+.auth-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9999}
+.auth-box{background:#ECE9D8;border:3px solid #0054E8;padding:22px;width:330px;border-radius:6px}
+.auth-title{font-size:18px;color:#0054E8;margin-bottom:16px;text-align:center;font-weight:700}
+.auth-input{width:100%;padding:8px;margin-bottom:10px;border:2px solid #B8B6A6;border-radius:4px}
+.auth-btn{width:100%;padding:8px;background:#0054E8;color:#fff;border:none;border-radius:4px;font-weight:700;cursor:pointer}
+.auth-switch{font-size:13px;text-align:center;color:#0054E8;cursor:pointer;margin-top:6px}
+.auth-tip{font-size:12px;color:red;text-align:center;margin-top:6px;display:none}
+
+.pwd-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:9999}
+.pwd-box{background:#ECE9D8;border:3px solid #0054E8;padding:20px;width:310px;border-radius:6px}
+.pwd-title{font-size:16px;color:#0054E8;margin-bottom:14px;text-align:center}
+.pwd-input{width:100%;padding:7px;margin-bottom:9px;border:2px solid #B8B6A6;border-radius:4px}
+.pwd-btn{width:100%;padding:7px;background:#0054E8;color:#fff;border:none;border-radius:4px;cursor:pointer}
+.pwd-tip{font-size:12px;color:red;text-align:center;margin-top:6px;display:none}
+
+.admin-panel{position:fixed;top:40px;right:20px;background:#ECE9D8;border:3px solid #0054E8;padding:16px;width:340px;border-radius:6px;display:none;z-index:9998}
+.admin-title{font-size:16px;color:#0054E8;margin-bottom:10px;text-align:center;font-weight:700}
+.admin-info{font-size:13px;margin-bottom:10px}
+.admin-set{margin-bottom:14px}
+.admin-set label{font-size:12px;display:block;margin-bottom:4px}
+.admin-set input{width:100%;padding:4px;border:2px solid #B8B6A6;border-radius:4px}
+.admin-set button{width:100%;padding:4px;background:#0054E8;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-top:4px}
+.admin-list{max-height:210px;overflow-y:auto;margin-bottom:10px}
+.admin-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #ddd}
+.admin-opt{display:flex;gap:6px}
+.admin-btn{font-size:11px;padding:2px 6px;background:#0054E8;color:#fff;border:none;border-radius:3px;cursor:pointer}
+.close-admin{text-align:center;font-size:12px;color:#0054E8;cursor:pointer;margin-top:10px}
+
+.title-bar{height:32px;background:linear-gradient(to right,#003399,#0054E8);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 15px;font-size:13px;font-weight:700}
+.account-ops{display:flex;gap:8px}
+.account-btn{font-size:12px;padding:3px 6px;border-radius:3px;background:rgba(255,255,255,.2);cursor:pointer}
+
+.main{display:flex;height:calc(100vh - 64px)}
+.sidebar{width:210px;background:#D9D7C8;border-right:2px solid #B8B6A6;padding:12px;font-size:12px}
+.sidebar-title{font-weight:700;margin-bottom:8px;border-bottom:2px solid #B8B6A6;padding-bottom:4px;color:#003399}
+.online{margin-top:10px}
+.online-item{margin:4px 0;padding-left:8px}
+.status{font-size:12px;color:green;margin-top:10px}
+
+.editor{flex:1;background:#fff;border:2px solid #B8B6A6;margin:8px;padding:12px;overflow-y:auto;font-size:14px;line-height:1.6;border-radius:4px}
+.msg{margin:8px 0;padding-bottom:8px;border-bottom:2px solid #f0f0f0}
+.user{font-size:12px;color:#003399;margin-bottom:3px;font-weight:700}
+.admin-msg .user{color:#ff6600}
+.admin-msg .content{background:#fff3e0;border-left:4px solid #ff6600;font-weight:700}
+
+/* 这里恢复了强制换行！*/
+.content{
+  background:#f5f4ee;
+  border:1px solid #d9d7c8;
+  padding:8px;
+  border-radius:4px;
+  white-space:pre-wrap;
+  word-wrap:break-word;
+  border-left:4px solid #0054E8;
+  width:100%;
+  overflow-wrap:break-word;
+  word-break:break-all;
 }
 
-/* 窗口标题栏 */
-.title-bar {
-  height: 28px;
-  background: linear-gradient(to right, #0054E8, #0072FF);
-  color: #FFF;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  font-size: 12px;
-  justify-content: space-between;
-}
+.input-bar{height:36px;border-top:2px solid #e0e0e0;display:flex;align-items:center;padding:0 15px;background:#fff}
+.prompt{color:#003399;font-size:15px;margin-right:10px;font-weight:700}
+#msgInput{flex:1;border:none;outline:0;background:transparent;font-size:14px}
 
-/* 主布局：侧边栏+编辑区 */
-.main {
-  display: flex;
-  height: calc(100vh - 90px); /* 适配输入区高度 */
-}
-.sidebar {
-  width: 200px;
-  background: #D9D7C8;
-  border-right: 1px solid #B8B6A6;
-  padding: 10px;
-  font-size: 12px;
-}
-.sidebar-title {
-  font-weight: bold;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #B8B6A6;
-  padding-bottom: 3px;
-}
-.editor {
-  flex: 1;
-  background: #FFFFFF;
-  border: 1px solid #B8B6A6;
-  margin: 5px;
-  padding: 10px;
-  overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-/* 消息样式：统一靠左 + 换行 + 浅色分割线 */
-.msg {
-  margin: 6px 0;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #F0F0F0; /* 浅色分割线区分消息 */
-}
-.user-name {
-  font-size: 11px;
-  color: #0054E8;
-  margin-bottom: 2px;
-}
-.code-content {
-  background: #F5F4EE;
-  border: 1px solid #D9D7C8;
-  padding: 6px 8px;
-  border-radius: 2px;
-  white-space: pre-wrap; /* 强制换行 */
-  word-wrap: break-word;
-  display: block; /* 占满整行，适配换行 */
-  width: 100%;
-}
-/* 不同用户的左侧标识线 */
-.dev1 .code-content { border-left: 3px solid #008000; }
-.dev2 .code-content { border-left: 3px solid #FF8C00; }
-.dev3 .code-content { border-left: 3px solid #FF0000; }
-.dev4 .code-content { border-left: 3px solid #800080; }
-
-/* 输入区：浅色分割线 + 支持换行 */
-.input-area {
-  height: 60px;
-  border-top: 1px solid #E0E0E0; /* 浅色分割线 */
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  background: #FFFFFF;
-}
-.prompt {
-  color: #0054E8;
-  font-size: 14px;
-  margin-right: 8px;
-}
-#code-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 14px;
-  padding: 5px 0;
-  resize: none; /* 禁止手动调整大小 */
-  height: 40px;
-  white-space: pre-wrap; /* 输入框支持换行 */
-  overflow-y: auto;
-}
-
-/* 用户选择弹窗 */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 999;
-}
-.modal-box {
-  background: #ECE9D8;
-  border: 2px solid #0054E8;
-  padding: 15px;
-  width: 280px;
-}
-.modal-title {
-  font-size: 14px;
-  color: #0054E8;
-  margin-bottom: 10px;
-}
-.user-select {
-  width: 100%;
-  margin-bottom: 10px;
-  padding: 3px;
-}
-.confirm-btn {
-  width: 100%;
-  padding: 4px 0;
-  cursor: pointer;
+.history-tip{
+  text-align:center;
+  font-size:11px;
+  color:#666;
+  margin:10px 0;
+  padding:5px;
+  background:#f0f0f0;
+  border-radius:3px;
 }
 </style>
 </head>
 <body>
-  <!-- 用户选择弹窗 -->
-  <div class="modal" id="user-modal">
-    <div class="modal-box">
-      <div class="modal-title">// 开发者标识配置</div>
-      <select class="user-select" id="user-select">
-        <option value="dev1">Dev1 (在线状态)</option>
-        <option value="dev2">Dev2 (在线状态)</option>
-        <option value="dev3">Dev3 (在线状态)</option>
-        <option value="dev4">Dev4 (在线状态)</option>
-      </select>
-      <button class="confirm-btn" onclick="confirmUser()">确认配置</button>
-    </div>
+
+<div class="auth-modal" id="authModal">
+  <div class="auth-box">
+    <div class="auth-title" id="authTitle">登录</div>
+    <input class="auth-input" id="username" placeholder="用户名">
+    <input type="password" class="auth-input" id="pwd" placeholder="4位数字密码">
+    <button class="auth-btn" onclick="auth()">登录</button>
+    <div class="auth-switch" onclick="toggleAuth()">没有账号？去注册</div>
+    <div class="auth-tip" id="authTip"></div>
   </div>
+</div>
 
-  <!-- Dev-C++ 标题栏 -->
-  <div class="title-bar">
-    <div>main.cpp - Dev-C++ 5.11</div>
+<div class="pwd-modal" id="pwdModal">
+  <div class="pwd-box">
+    <div class="pwd-title">修改密码</div>
+    <input type="password" class="pwd-input" id="oldPwd" placeholder="原密码">
+    <input type="password" class="pwd-input" id="newPwd" placeholder="新4位密码">
+    <input type="password" class="pwd-input" id="cfmPwd" placeholder="确认新密码">
+    <button class="pwd-btn" onclick="doChangePwd()">确认修改</button>
+    <div class="pwd-tip" id="pwdTip"></div>
+    <div class="auth-switch" onclick="closePwd()">取消</div>
   </div>
+</div>
 
-  <!-- 主布局 -->
-  <div class="main">
-    <div class="sidebar">
-      <div class="sidebar-title">Project Explorer</div>
-      <div>📁 My Project</div>
-      <div>└─ main.cpp</div>
-      <div style="margin-top: 15px; font-size: 11px; color: #666;" id="online-status">
-        // 在线开发者：0/4
-      </div>
-    </div>
-    <div class="editor" id="editor">
-// C++ 代码协作终端
-// 支持多行代码输入，自动换行
-// 离开后自动释放用户名
-#include &lt;iostream&gt;
-using namespace std;
+<div class="admin-panel" id="adminPanel">
+  <div class="admin-title">管理员面板</div>
+  <div class="admin-info" id="adminInfo"></div>
+  <div class="admin-set">
+    <label>最大账户数</label>
+    <input type="number" id="maxInput" min="1" max="99">
+    <button onclick="saveMax()">保存</button>
+  </div>
+  <div class="admin-list" id="adminList"></div>
+  <div class="close-admin" onclick="closeAdmin()">关闭</div>
+</div>
 
-int main() {
-    // 等待协作...
-    return 0;
+<div class="title-bar">
+  <div>main.cpp</div>
+  <div class="account-ops">
+    <div class="account-btn" id="changePwdBtn" style="display:none" onclick="openPwd()">修改密码</div>
+    <div class="account-btn" id="adminBtn" style="display:none" onclick="openAdmin()">管理员面板</div>
+    <div class="account-btn" id="logoutBtn" style="display:none" onclick="logout()">退出</div>
+    <div class="account-btn" id="delBtn" style="display:none" onclick="delSelf()">注销账号</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-title">项目</div>
+    <div>📁 CodeChat</div>
+    <div>└─ main.cpp</div>
+    <div class="sidebar-title" style="margin-top:14px">在线用户</div>
+    <div class="online" id="onlineList"></div>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="editor" id="editor"></div>
+</div>
+
+<div class="input-bar">
+  <div class="prompt">//></div>
+  <input id="msgInput" disabled placeholder="请先登录">
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+<script>
+const ADMIN = { name: "admin", pwd: "8888" };
+const SERVER = "https://socketio-chat-h9jt.onrender.com";
+
+const STORAGE_KEYS = {
+  accounts: "codeChat_accounts",
+  maxAccounts: "codeChat_maxAccounts",
+  chatHistory: "codeChat_chatHistory",
+  session: "codeChat_session"
+};
+
+let maxAccounts = 10;
+let accounts = [];
+let me = null;
+let isAdmin = false;
+let online = [];
+let socket = null;
+const MAX_HISTORY = 5;
+
+window.onload = () => {
+  loadFromLocalStorage();
+  restoreSession();
+  bindEnter();
+  initSocket();
+};
+
+function loadFromLocalStorage() {
+  const accStr = localStorage.getItem(STORAGE_KEYS.accounts);
+  if (accStr) {
+    try { accounts = JSON.parse(accStr); }
+    catch(e) { accounts = []; }
+  }
+  
+  const maxStr = localStorage.getItem(STORAGE_KEYS.maxAccounts);
+  if (maxStr) {
+    try { maxAccounts = parseInt(maxStr); }
+    catch(e) { maxAccounts = 10; }
+  }
+  
+  const histStr = localStorage.getItem(STORAGE_KEYS.chatHistory);
+  if (!histStr) {
+    localStorage.setItem(STORAGE_KEYS.chatHistory, JSON.stringify([]));
+  }
 }
-    </div>
-  </div>
 
-  <!-- 输入区 -->
-  <div class="input-area">
-    <div class="prompt">//></div>
-    <textarea id="code-input" placeholder="输入代码/文字，Shift+Enter换行，Enter发送..."></textarea>
-  </div>
+function saveAccountsToLocal() {
+  localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(accounts));
+}
 
-  <script>
-    // 全局变量
-    let currentUser = "";
-    const userMap = { dev1: "Dev1", dev2: "Dev2", dev3: "Dev3", dev4: "Dev4" };
-    const roomId = "dev-cpp-team-2026";
-    let messageList = [];
-    
-    // 核心：用户在线状态管理（自动释放+在线检测）
-    let userStatus = JSON.parse(localStorage.getItem("dev_user_status")) || {
-      dev1: { online: false, lastActive: 0 },
-      dev2: { online: false, lastActive: 0 },
-      dev3: { online: false, lastActive: 0 },
-      dev4: { online: false, lastActive: 0 }
-    };
+function saveMaxToLocal() {
+  localStorage.setItem(STORAGE_KEYS.maxAccounts, maxAccounts.toString());
+}
 
-    // 1. 转义HTML字符（防止代码执行）
-    function escapeHtml(str) {
-      if (!str) return "";
-      return str.replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+function saveChatHistory(msg) {
+  const histStr = localStorage.getItem(STORAGE_KEYS.chatHistory);
+  let history = [];
+  if (histStr) {
+    try { history = JSON.parse(histStr); }
+    catch(e) { history = []; }
+  }
+  history.push(msg);
+  if (history.length > MAX_HISTORY) {
+    history = history.slice(-MAX_HISTORY);
+  }
+  localStorage.setItem(STORAGE_KEYS.chatHistory, JSON.stringify(history));
+}
+
+function loadChatHistory() {
+  const histStr = localStorage.getItem(STORAGE_KEYS.chatHistory);
+  let history = [];
+  if (histStr) {
+    try { history = JSON.parse(histStr); }
+    catch(e) { history = []; }
+  }
+  return history;
+}
+
+function saveSession(u) { 
+  localStorage.setItem(STORAGE_KEYS.session, JSON.stringify({ u })); 
+}
+
+function restoreSession() {
+  const s = localStorage.getItem(STORAGE_KEYS.session);
+  if (!s) return;
+  try {
+    const { u } = JSON.parse(s);
+    if (!u) return;
+    me = u;
+    isAdmin = u === ADMIN.name;
+    authModal.style.display = "none";
+    afterLogin();
+  } catch(e){}
+}
+
+function toggleAuth() {
+  const t = authTitle.innerText;
+  if (t === "登录") {
+    authTitle.innerText = "注册";
+    document.querySelector(".auth-btn").innerText = "注册";
+    authSwitch.innerText = "已有账号？去登录";
+  } else {
+    authTitle.innerText = "登录";
+    document.querySelector(".auth-btn").innerText = "登录";
+    authSwitch.innerText = "没有账号？去注册";
+  }
+  authTip.style.display = "none";
+}
+
+function v4(s) { return /^\d{4}$/.test(s); }
+
+function auth() {
+  const n = username.value.trim();
+  const p = pwd.value.trim();
+  const reg = authTitle.innerText === "注册";
+  if (!n || !p) { tip(authTip,"不能为空"); return; }
+  if (!v4(p)) { tip(authTip,"必须4位数字"); return; }
+
+  if (reg) {
+    if (n === ADMIN.name) { tip(authTip,"用户名不可用"); return; }
+    if (accounts.some(x => x.name === n)) { tip(authTip,"已存在"); return; }
+    const normal = accounts.filter(x => x.name !== ADMIN.name);
+    if (normal.length >= maxAccounts) { tip(authTip,`最多${maxAccounts}个`); return; }
+    accounts.push({ name: n, pwd: p });
+    saveAccountsToLocal();
+    tip(authTip,"注册成功！请登录");
+    setTimeout(toggleAuth, 1500);
+    return;
+  }
+
+  if (n === ADMIN.name && p === ADMIN.pwd) {
+    me = n; isAdmin = true;
+    saveSession(n);
+    authModal.style.display = "none";
+    afterLogin();
+    return;
+  }
+
+  const user = accounts.find(x => x.name === n && x.pwd === p);
+  if (!user) { tip(authTip,"账号或密码错误"); return; }
+  me = n; isAdmin = false;
+  saveSession(n);
+  authModal.style.display = "none";
+  afterLogin();
+}
+
+function tip(el, t) { el.innerText = t; el.style.display = "block"; }
+
+function afterLogin() {
+  changePwdBtn.style.display = "block";
+  logoutBtn.style.display = "block";
+  showChatHistory();
+
+  if (isAdmin) {
+    adminBtn.style.display = "block";
+    delBtn.style.display = "none";
+    msgInput.placeholder = "管理员模式";
+    sys(`管理员 ${me} 已登录`);
+  } else {
+    adminBtn.style.display = "none";
+    delBtn.style.display = "block";
+    msgInput.placeholder = "输入消息...";
+    socket.emit("join", { user: me });
+    sys(`欢迎 ${me}`);
+  }
+  msgInput.disabled = false;
+}
+
+function showChatHistory() {
+  const history = loadChatHistory();
+  if (history.length === 0) return;
+  const tipDiv = document.createElement("div");
+  tipDiv.className = "history-tip";
+  tipDiv.innerText = `—— 登录前的${history.length}条消息 ——`;
+  editor.appendChild(tipDiv);
+  history.forEach(msg => {
+    addMsg(msg.user, msg.content, msg.admin);
+  });
+}
+
+function sys(t) {
+  const e = editor;
+  const d = document.createElement("div");
+  d.className = "msg";
+  d.innerHTML = `<div class="user">// 系统</div><div class="content">${t}</div>`;
+  e.appendChild(d);
+  e.scrollTop = e.scrollHeight;
+}
+
+function bindEnter() {
+  msgInput.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.target.disabled) send();
+  });
+}
+
+function send() {
+  const c = msgInput.value.trim();
+  if (!c) return;
+  
+  let msgData = {};
+  if (isAdmin) {
+    addMsg("系统管理员", c, true);
+    msgData = { user: "系统管理员", content: c, admin: true };
+    socket.emit("chat message", msgData);
+  } else {
+    addMsg(me, c);
+    msgData = { user: me, content: c, admin: false };
+    socket.emit("chat message", msgData);
+  }
+  
+  saveChatHistory(msgData);
+  msgInput.value = "";
+}
+
+function addMsg(user, content, adminMsg = false) {
+  const e = editor;
+  const d = document.createElement("div");
+  d.className = adminMsg ? "msg admin-msg" : "msg";
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  d.innerHTML = `<div class="user">// ${user}</div><div class="content">${esc(content)}</div>`;
+  e.appendChild(d);
+  e.scrollTop = e.scrollHeight;
+}
+
+function initSocket() {
+  socket = io(SERVER);
+  socket.on("connect", () => {
+    status.innerText = isAdmin ? "// 已连接（隐身）" : "// 已连接";
+  });
+  
+  socket.on("chat message", m => {
+    addMsg(m.user, m.content, m.admin);
+    saveChatHistory(m);
+  });
+  
+  socket.on("online users", arr => {
+    online = arr.filter(x => x !== ADMIN.name);
+    renderOnline();
+    if (isAdmin) refreshAdmin();
+  });
+  
+  socket.on("user join", u => {
+    if (u !== ADMIN.name) {
+      sys(`${u} 上线`);
+      saveChatHistory({ user: "系统", content: `${u} 上线`, admin: false });
     }
-
-    // 2. 更新在线状态（每30秒检测，5分钟无活动自动下线）
-    function updateOnlineStatus() {
-      // 标记当前用户为活跃
-      if (currentUser) {
-        userStatus[currentUser].online = true;
-        userStatus[currentUser].lastActive = Date.now();
-      }
-
-      // 检测超时用户，自动下线
-      const timeout = 5 * 60 * 1000; // 5分钟超时
-      for (let user in userStatus) {
-        if (userStatus[user].online && (Date.now() - userStatus[user].lastActive) > timeout) {
-          userStatus[user].online = false; // 自动释放用户名
-        }
-      }
-
-      // 保存状态 + 更新页面显示
-      localStorage.setItem("dev_user_status", JSON.stringify(userStatus));
-      const onlineCount = Object.values(userStatus).filter(u => u.online).length;
-      document.getElementById("online-status").innerText = `// 在线开发者：${onlineCount}/4`;
+  });
+  
+  socket.on("user leave", u => {
+    if (u !== ADMIN.name) {
+      sys(`${u} 下线`);
+      saveChatHistory({ user: "系统", content: `${u} 下线`, admin: false });
     }
+  });
+}
 
-    // 3. 确认用户（检测在线状态，不重复占用）
-    function confirmUser() {
-      const selected = document.getElementById("user-select").value;
-      if (!selected) return alert("// 请选择开发者标识！");
+function renderOnline() {
+  const o = onlineList;
+  o.innerHTML = "";
+  if (online.length === 0) {
+    o.innerHTML = `<div class="online-item">// 暂无在线</div>`;
+    return;
+  }
+  online.forEach(u => {
+    const d = document.createElement("div");
+    d.className = "online-item";
+    d.innerText = `// ${u}（在线）`;
+    o.appendChild(d);
+  });
+}
 
-      // 检测该用户是否在线
-      if (userStatus[selected].online) {
-        alert(`// 错误：${userMap[selected]} 已在线，请选择其他标识！`);
-        return;
-      }
+function openPwd() { pwdModal.style.display = "flex"; pwdTip.style.display = "none"; }
+function closePwd() { pwdModal.style.display = "none"; }
+function doChangePwd() {
+  const o = oldPwd.value.trim();
+  const n = newPwd.value.trim();
+  const c = cfmPwd.value.trim();
+  if (!o || !n || !c) { tip(pwdTip,"不能为空"); return; }
+  if (!v4(n)) { tip(pwdTip,"必须4位"); return; }
+  if (n !== c) { tip(pwdTip,"两次不一致"); return; }
 
-      // 标记当前用户上线
-      currentUser = selected;
-      userStatus[currentUser].online = true;
-      userStatus[currentUser].lastActive = Date.now();
-      updateOnlineStatus();
+  if (isAdmin) {
+    if (o !== ADMIN.pwd) { tip(pwdTip,"原密码错"); return; }
+    ADMIN.pwd = n;
+    tip(pwdTip,"修改成功");
+    setTimeout(closePwd, 1500);
+    return;
+  }
 
-      // 关闭弹窗，初始化功能
-      document.getElementById("user-modal").style.display = "none";
-      initChat();
-      
-      // 绑定输入事件：Shift+Enter换行，Enter发送
-      const input = document.getElementById("code-input");
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-          input.value = "";
-        }
-      });
+  const user = accounts.find(x => x.name === me);
+  if (user.pwd !== o) { tip(pwdTip,"原密码错"); return; }
+  user.pwd = n;
+  saveAccountsToLocal();
+  tip(pwdTip,"修改成功");
+  setTimeout(closePwd, 1500);
+}
 
-      // 页面关闭/刷新时，自动下线
-      window.addEventListener("beforeunload", () => {
-        if (currentUser) {
-          userStatus[currentUser].online = false;
-          localStorage.setItem("dev_user_status", JSON.stringify(userStatus));
-        }
-      });
+function openAdmin() { if (!isAdmin) return; refreshAdmin(); adminPanel.style.display = "block"; }
+function closeAdmin() { adminPanel.style.display = "none"; }
+function refreshAdmin() {
+  const normal = accounts.filter(x => x.name !== ADMIN.name);
+  adminInfo.innerText = `总数：${normal.length}｜在线：${online.length}｜上限：${maxAccounts}`;
+  maxInput.value = maxAccounts;
+  const list = adminList;
+  list.innerHTML = "";
+  if (normal.length === 0) {
+    list.innerHTML = `<div class="admin-item">// 无账户</div>`;
+    return;
+  }
+  normal.forEach(a => {
+    const on = online.includes(a.name);
+    const item = document.createElement("div");
+    item.className = "admin-item";
+    item.innerHTML = `
+      <div>${a.name} ${on ? "(在线)" : "(离线)"}</div>
+      <div class="admin-opt">
+        <div class="admin-btn" onclick="resetPwd('${a.name}')">重置0000</div>
+        <div class="admin-btn" onclick="deleteAcc('${a.name}')">注销</div>
+      </div>
+    `;
+    list.appendChild(item);
+  });
+}
 
-      // 定时更新在线状态
-      setInterval(updateOnlineStatus, 30 * 1000); // 每30秒更新一次
-    }
+function saveMax() {
+  const v = parseInt(maxInput.value);
+  if (!v || v < 1) return;
+  maxAccounts = v;
+  saveMaxToLocal();
+  refreshAdmin();
+}
 
-    // 4. 初始化跨网聊天
-    function initChat() {
-      setInterval(() => {
-        fetch(`https://jsonplaceholder.typicode.com/posts/${roomId}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.body) {
-              const newMessages = JSON.parse(data.body);
-              if (newMessages.length > messageList.length) {
-                const unread = newMessages.slice(messageList.length);
-                unread.forEach(msg => addMessage(msg));
-                messageList = newMessages;
-              }
-            }
-          })
-          .catch(err => console.log("// 代码同步中...", err));
-      }, 500);
-    }
+function resetPwd(user) {
+  if (!confirm(`重置 ${user} 为 0000？`)) return;
+  const u = accounts.find(x => x.name === user);
+  if (u) u.pwd = "0000";
+  saveAccountsToLocal();
+  refreshAdmin();
+}
 
-    // 5. 发送消息（支持换行）
-    function sendMessage() {
-      const input = document.getElementById("code-input");
-      const rawContent = input.value.trim();
-      if (!rawContent || !currentUser) return;
+function deleteAcc(user) {
+  if (!confirm(`注销 ${user}？`)) return;
+  accounts = accounts.filter(x => x.name !== user);
+  saveAccountsToLocal();
+  refreshAdmin();
+}
 
-      // 转义内容，防止执行
-      const safeContent = escapeHtml(rawContent);
-      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function logout() {
+  if (socket && !isAdmin) socket.emit("leave", { user: me });
+  me = null; isAdmin = false;
+  localStorage.removeItem(STORAGE_KEYS.session);
+  location.reload();
+}
 
-      const message = {
-        username: currentUser,
-        name: userMap[currentUser],
-        content: safeContent,
-        time: time
-      };
-
-      // 本地显示消息
-      addMessage(message);
-      // 同步到跨网接口
-      messageList.push(message);
-      fetch(`https://jsonplaceholder.typicode.com/posts/${roomId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: JSON.stringify(messageList) })
-      }).catch(err => console.log("// 代码同步失败，本地已保存", err));
-    }
-
-    // 6. 添加消息（统一靠左 + 自动换行 + 分割线）
-    function addMessage(msg) {
-      const editor = document.getElementById("editor");
-      const msgDiv = document.createElement("div");
-      msgDiv.className = `msg ${msg.username}`;
-      
-      msgDiv.innerHTML = `
-        <div class="user-name">// ${msg.name} [${msg.time}]</div>
-        <div class="code-content">${msg.content}</div>
-      `;
-      
-      editor.appendChild(msgDiv);
-      editor.scrollTop = editor.scrollHeight; // 自动滚动到底部
-    }
-
-    // 初始化在线状态显示
-    updateOnlineStatus();
-  </script>
+function delSelf() {
+  if (!confirm("注销后无法恢复")) return;
+  accounts = accounts.filter(x => x.name !== me);
+  saveAccountsToLocal();
+  logout();
+}
+</script>
 </body>
 </html>

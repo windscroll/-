@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>聊天系统</title>
+<title>聊天系统（登录注册清晰版）</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Consolas,"Courier New",monospace}
 body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
@@ -11,8 +11,11 @@ body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
 .auth-box{background:#ECE9D8;border:3px solid #0054E8;padding:22px;width:330px;border-radius:6px}
 .auth-title{font-size:18px;color:#0054E8;margin-bottom:16px;text-align:center;font-weight:700}
 .auth-input{width:100%;padding:8px;margin-bottom:10px;border:2px solid #B8B6A6;border-radius:4px}
-.auth-btn{width:100%;padding:8px;background:#0054E8;color:#fff;border:none;border-radius:4px;font-weight:700;cursor:pointer}
-.auth-switch{font-size:13px;text-align:center;color:#0054E8;cursor:pointer;margin-top:6px}
+/* 登录/注册按钮视觉区分 */
+.login-btn{background:#0054E8}
+.register-btn{background:#009688}
+.auth-btn{width:100%;padding:8px;color:#fff;border:none;border-radius:4px;font-weight:700;cursor:pointer}
+.auth-switch{font-size:13px;text-align:center;color:#0054E8;cursor:pointer;margin-top:6px;text-decoration:underline}
 .auth-tip{font-size:12px;color:red;text-align:center;margin-top:6px;display:none}
 
 .pwd-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:9999}
@@ -32,7 +35,7 @@ body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
 .admin-list{max-height:210px;overflow-y:auto;margin-bottom:10px}
 .admin-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #ddd}
 .admin-opt{display:flex;gap:6px}
-.admin-btn{font-size:11px;padding:2px 6px;background:#0054E8;color:#fff;border-radius:3px}
+.admin-btn{font-size:11px;padding:2px 6px;background:#0054E8;color:#fff;border-radius:3px;cursor:pointer}
 .close-admin{text-align:center;font-size:12px;color:#0054E8;cursor:pointer}
 
 .title-bar{height:32px;background:linear-gradient(to right,#003399,#0054E8);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 15px}
@@ -77,17 +80,33 @@ body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
   background:#f0f0f0;
   border-radius:3px;
 }
+
+.sync-tip{
+  position:fixed;
+  bottom:10px;
+  left:10px;
+  font-size:11px;
+  color:#0054E8;
+  background:#ECE9D8;
+  padding:4px 8px;
+  border-radius:3px;
+  border:1px solid #0054E8;
+}
 </style>
 </head>
 <body>
 
+<div class="sync-tip" id="syncTip">数据已就绪 ✅</div>
+
+<!-- 登录/注册弹窗（核心修复） -->
 <div class="auth-modal" id="authModal">
   <div class="auth-box">
     <div class="auth-title" id="authTitle">登录</div>
-    <input class="auth-input" id="username" placeholder="用户名">
-    <input type="password" class="auth-input" id="pwd" placeholder="4位数字密码">
-    <button class="auth-btn" onclick="auth()">登录</button>
-    <div class="auth-switch" onclick="toggleAuth()">没有账号？去注册</div>
+    <input class="auth-input" id="username" placeholder="请输入用户名">
+    <input type="password" class="auth-input" id="pwd" placeholder="请输入4位数字密码">
+    <!-- 按钮添加明确类名，区分登录/注册 -->
+    <button class="auth-btn login-btn" id="authBtn" onclick="auth()">登录</button>
+    <div class="auth-switch" id="authSwitch" onclick="toggleAuth()">没有账号？点击注册</div>
     <div class="auth-tip" id="authTip"></div>
   </div>
 </div>
@@ -159,15 +178,140 @@ let chatHistory = [];
 let me = null;
 let isAdmin = false;
 let socket = null;
-const MAX_HISTORY = 5;
+let isRegisterMode = false; // 明确标记当前是登录/注册模式
+const MAX_HISTORY = 8;
 
 window.onload = () => {
   loadLocal();
   restoreSession();
   bindEnter();
   initSocket();
+  syncAcrossBrowsers();
 };
 
+// ================= 核心修复：登录/注册切换逻辑（清晰无歧义） =================
+function toggleAuth() {
+  const authTitle = document.getElementById("authTitle");
+  const authBtn = document.getElementById("authBtn");
+  const authSwitch = document.getElementById("authSwitch");
+  const authTip = document.getElementById("authTip");
+  
+  // 清空提示
+  authTip.style.display = "none";
+  
+  // 切换模式
+  isRegisterMode = !isRegisterMode;
+  
+  if (isRegisterMode) {
+    // 注册模式
+    authTitle.innerText = "注册";
+    authBtn.innerText = "注册";
+    authBtn.className = "auth-btn register-btn"; // 换颜色区分
+    authSwitch.innerText = "已有账号？点击登录";
+    document.getElementById("pwd").placeholder = "请设置4位数字密码";
+  } else {
+    // 登录模式
+    authTitle.innerText = "登录";
+    authBtn.innerText = "登录";
+    authBtn.className = "auth-btn login-btn"; // 还原登录按钮样式
+    authSwitch.innerText = "没有账号？点击注册";
+    document.getElementById("pwd").placeholder = "请输入4位数字密码";
+  }
+}
+
+// ================= 登录/注册核心逻辑（严格区分） =================
+function auth() {
+  const username = document.getElementById("username").value.trim();
+  const pwd = document.getElementById("pwd").value.trim();
+  const authTip = document.getElementById("authTip");
+  
+  // 通用验证
+  if (!username) { 
+    authTip.innerText = "用户名不能为空！"; 
+    authTip.style.display = "block"; 
+    return; 
+  }
+  if (!pwd) { 
+    authTip.innerText = "密码不能为空！"; 
+    authTip.style.display = "block"; 
+    return; 
+  }
+  if (!/^\d{4}$/.test(pwd)) { 
+    authTip.innerText = "密码必须是4位数字！"; 
+    authTip.style.display = "block"; 
+    return; 
+  }
+
+  // 注册逻辑（严格区分）
+  if (isRegisterMode) {
+    // 禁止注册admin
+    if (username === ADMIN.name) {
+      authTip.innerText = "该用户名不可注册！";
+      authTip.style.display = "block";
+      return;
+    }
+    // 检查用户名是否已存在
+    if (accounts.some(user => user.name === username)) {
+      authTip.innerText = "用户名已存在！";
+      authTip.style.display = "block";
+      return;
+    }
+    // 检查账户上限
+    const normalUsers = accounts.filter(user => user.name !== ADMIN.name);
+    if (normalUsers.length >= maxAccounts) {
+      authTip.innerText = "账户已达上限，无法注册！";
+      authTip.style.display = "block";
+      return;
+    }
+    
+    // 执行注册
+    accounts.push({ name: username, pwd: pwd });
+    saveAccounts();
+    
+    authTip.innerText = "注册成功！即将跳转到登录...";
+    authTip.style.color = "#009688"; // 绿色提示
+    authTip.style.display = "block";
+    
+    // 自动切回登录模式
+    setTimeout(() => {
+      toggleAuth();
+      document.getElementById("username").value = username;
+      document.getElementById("pwd").value = "";
+      authTip.style.display = "none";
+    }, 1500);
+    return;
+  }
+
+  // 登录逻辑（严格区分）
+  if (!isRegisterMode) {
+    // 管理员登录
+    if (username === ADMIN.name && pwd === ADMIN.pwd) {
+      me = username;
+      isAdmin = true;
+      saveSession(username);
+      document.getElementById("authModal").style.display = "none";
+      afterLogin();
+      return;
+    }
+    
+    // 普通用户登录
+    const user = accounts.find(u => u.name === username && u.pwd === pwd);
+    if (user) {
+      me = username;
+      isAdmin = false;
+      saveSession(username);
+      document.getElementById("authModal").style.display = "none";
+      afterLogin();
+      return;
+    } else {
+      authTip.innerText = "用户名或密码错误！";
+      authTip.style.display = "block";
+      return;
+    }
+  }
+}
+
+// ================= 其他核心功能（保留完整） =================
 function loadLocal() {
   accounts = JSON.parse(localStorage.getItem(STORAGE.accounts)) || [];
   maxAccounts = parseInt(localStorage.getItem(STORAGE.maxAccounts)) || 10;
@@ -179,7 +323,12 @@ function saveAccounts() {
 }
 
 function saveMax() {
-  localStorage.setItem(STORAGE.maxAccounts, maxAccounts);
+  const maxVal = parseInt(document.getElementById("maxInput").value);
+  if (maxVal && maxVal >= 1) {
+    maxAccounts = maxVal;
+    localStorage.setItem(STORAGE.maxAccounts, maxAccounts);
+    document.getElementById("adminInfo").innerText = `用户数：${accounts.length}  上限：${maxAccounts}`;
+  }
 }
 
 function saveHistory(msg) {
@@ -197,186 +346,303 @@ function restoreSession() {
   if (!u) return;
   me = u;
   isAdmin = u === ADMIN.name;
-  authModal.style.display = "none";
+  document.getElementById("authModal").style.display = "none";
   afterLogin();
 }
 
-function toggleAuth() {
-  if (authTitle.innerText === "登录") {
-    authTitle.innerText = "注册";
-    authBtn.innerText = "注册";
-    authSwitch.innerText = "已有账号？去登录";
-  } else {
-    authTitle.innerText = "登录";
-    authBtn.innerText = "登录";
-    authSwitch.innerText = "没有账号？去注册";
-  }
-  authTip.style.display = "none";
-}
-
-function v4(s) {
-  return /^\d{4}$/.test(s);
-}
-
-function auth() {
-  const n = username.value.trim();
-  const p = pwd.value.trim();
-  const reg = authTitle.innerText === "注册";
-
-  if (!n || !p) { authTip.innerText = "不能为空"; authTip.style.display = "block"; return; }
-  if (!v4(p)) { authTip.innerText = "必须4位数字"; authTip.style.display = "block"; return; }
-
-  if (reg) {
-    if (n === ADMIN.name) { authTip.innerText = "用户名不可用"; authTip.style.display = "block"; return; }
-    if (accounts.some(x => x.name === n)) { authTip.innerText = "已存在"; authTip.style.display = "block"; return; }
-    const normal = accounts.filter(x => x.name !== ADMIN.name);
-    if (normal.length >= maxAccounts) { authTip.innerText = "已达上限"; authTip.style.display = "block"; return; }
-    accounts.push({ name: n, pwd: p });
-    saveAccounts();
-    authTip.innerText = "注册成功！请登录";
-    authTip.style.display = "block";
-    setTimeout(toggleAuth, 1000);
-    return;
-  }
-
-  if (n === ADMIN.name && p === ADMIN.pwd) {
-    me = n;
-    isAdmin = true;
-    saveSession(n);
-    authModal.style.display = "none";
-    afterLogin();
-    return;
-  }
-
-  const user = accounts.find(x => x.name === n && x.pwd === p);
-  if (!user) { authTip.innerText = "账号或密码错误"; authTip.style.display = "block"; return; }
-  me = n;
-  isAdmin = false;
-  saveSession(n);
-  authModal.style.display = "none";
-  afterLogin();
+function syncAcrossBrowsers() {
+  window.addEventListener("storage", (e) => {
+    if (e.key === STORAGE.accounts || e.key === STORAGE.history || e.key === STORAGE.maxAccounts) {
+      loadLocal();
+      if (me) showHistory();
+      document.getElementById("syncTip").innerText = "跨浏览器同步已更新 ✅";
+      setTimeout(() => document.getElementById("syncTip").innerText = "数据已就绪 ✅", 2000);
+    }
+  });
 }
 
 function afterLogin() {
-  changePwdBtn.style.display = "inline-block";
-  logoutBtn.style.display = "inline-block";
+  // 显示功能按钮
+  document.getElementById("changePwdBtn").style.display = "inline-block";
+  document.getElementById("logoutBtn").style.display = "inline-block";
+  
+  // 管理员显示管理员按钮
+  if (isAdmin) {
+    document.getElementById("adminBtn").style.display = "inline-block";
+    refreshAdminPanel();
+  }
+  
+  // 激活输入框
+  document.getElementById("msgInput").disabled = false;
+  document.getElementById("msgInput").placeholder = "输入消息后按回车发送...";
+  
+  // 显示历史消息
   showHistory();
-  if (isAdmin) adminBtn.style.display = "inline-block";
-  msgInput.disabled = false;
-  msgInput.placeholder = "输入消息...";
-  sys(`欢迎回来，${me}`);
+  
+  // 系统提示
+  sys(`欢迎 ${isAdmin ? "管理员" : ""}${me} 登录！`);
+  
+  // 连接socket
   if (!isAdmin && socket) socket.emit("join", { user: me });
 }
 
 function showHistory() {
+  const editor = document.getElementById("editor");
+  // 清空原有历史提示
+  const oldTips = editor.querySelectorAll(".history-tip");
+  oldTips.forEach(t => t.remove());
+
   if (chatHistory.length === 0) return;
+
+  // 添加历史提示
   const tip = document.createElement("div");
   tip.className = "history-tip";
-  tip.innerText = "—— 最近消息 ——";
+  tip.innerText = "—— 最近聊天记录 ——";
   editor.appendChild(tip);
+
+  // 显示历史消息
   chatHistory.forEach(m => addMsg(m.user, m.content, m.admin));
 }
 
 function sys(text) {
   addMsg("系统", text, false);
+  saveHistory({ user: "系统", content: text, admin: false });
 }
 
-function addMsg(user, content, adminMsg) {
-  const div = document.createElement("div");
-  div.className = adminMsg ? "msg admin-msg" : "msg";
-  div.innerHTML = `<div class="user">// ${user}</div><div class="content">${content.replace(/</g, "&lt;")}</div>`;
-  editor.appendChild(div);
+function addMsg(user, content, isAdminMsg) {
+  const editor = document.getElementById("editor");
+  const msgDiv = document.createElement("div");
+  msgDiv.className = isAdminMsg ? "msg admin-msg" : "msg";
+  
+  // 转义特殊字符，避免XSS
+  const safeContent = content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  
+  msgDiv.innerHTML = `
+    <div class="user">// ${user}</div>
+    <div class="content">${safeContent}</div>
+  `;
+  
+  editor.appendChild(msgDiv);
+  // 滚动到底部
   editor.scrollTop = editor.scrollHeight;
 }
 
 function bindEnter() {
-  msgInput.addEventListener("keydown", e => {
-    if (e.key === "Enter" && !msgInput.disabled) send();
+  document.getElementById("msgInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.target.disabled) {
+      sendMsg();
+    }
   });
 }
 
-function send() {
-  const t = msgInput.value.trim();
-  if (!t) return;
-  const data = {
-    user: isAdmin ? "管理员" : me,
-    content: t,
-    admin: isAdmin
-  };
-  addMsg(data.user, t, isAdmin);
-  saveHistory(data);
-  if (socket) socket.emit("chat message", data);
-  msgInput.value = "";
+function sendMsg() {
+  const input = document.getElementById("msgInput");
+  const content = input.value.trim();
+  
+  if (!content) return;
+  
+  // 发送消息
+  const isAdminMsg = isAdmin;
+  const userName = isAdmin ? "管理员" : me;
+  
+  addMsg(userName, content, isAdminMsg);
+  saveHistory({ user: userName, content: content, admin: isAdminMsg });
+  
+  // 同步到socket
+  if (socket) {
+    socket.emit("chat message", {
+      user: userName,
+      content: content,
+      admin: isAdminMsg
+    });
+  }
+  
+  // 清空输入框
+  input.value = "";
 }
 
 function initSocket() {
   socket = io(SERVER);
-  socket.on("chat message", m => {
-    addMsg(m.user, m.content, m.admin);
-    saveHistory(m);
+  
+  socket.on("connect", () => {
+    document.getElementById("status").innerText = "已连接服务器 ✅";
   });
-  socket.on("online users", list => {
+  
+  socket.on("chat message", (msg) => {
+    addMsg(msg.user, msg.content, msg.admin);
+    saveHistory(msg);
+  });
+  
+  socket.on("online users", (list) => {
+    const onlineList = document.getElementById("onlineList");
     onlineList.innerHTML = "";
-    list.filter(x => x !== ADMIN.name).forEach(u => {
-      const d = document.createElement("div");
-      d.className = "online-item";
-      d.innerText = u;
-      onlineList.appendChild(d);
+    
+    list.filter(u => u !== ADMIN.name).forEach(user => {
+      const item = document.createElement("div");
+      item.className = "online-item";
+      item.innerText = user;
+      onlineList.appendChild(item);
     });
   });
+  
+  socket.on("disconnect", () => {
+    document.getElementById("status").innerText = "服务器已断开 ❌";
+  });
 }
 
-function openPwd() { pwdModal.style.display = "flex"; }
-function closePwd() { pwdModal.style.display = "none"; }
-
-function doChangePwd() {
-  const o = oldPwd.value;
-  const n = newPwd.value;
-  const c = cfmPwd.value;
-  if (!o || !n || !c) { pwdTip.innerText = "不能为空"; pwdTip.style.display = "block"; return; }
-  if (!v4(n)) { pwdTip.innerText = "必须4位"; pwdTip.style.display = "block"; return; }
-  if (n !== c) { pwdTip.innerText = "两次不一致"; pwdTip.style.display = "block"; return; }
-
-  if (isAdmin) {
-    if (o !== ADMIN.pwd) { pwdTip.innerText = "原密码错误"; pwdTip.style.display = "block"; return; }
-    ADMIN.pwd = n;
-    pwdTip.innerText = "修改成功";
-    pwdTip.style.display = "block";
-    setTimeout(closePwd, 1000);
-    return;
-  }
-
-  const user = accounts.find(x => x.name === me);
-  if (user.pwd !== o) { pwdTip.innerText = "原密码错误"; pwdTip.style.display = "block"; return; }
-  user.pwd = n;
-  saveAccounts();
-  pwdTip.innerText = "修改成功";
-  pwdTip.style.display = "block";
-  setTimeout(closePwd, 1000);
-}
-
+// ================= 管理员功能（完整恢复） =================
 function openAdmin() {
   if (!isAdmin) return;
-  adminInfo.innerText = `用户数：${accounts.length}  上限：${maxAccounts}`;
-  maxInput.value = maxAccounts;
-  adminList.innerHTML = "";
-  accounts.forEach(u => {
-    const item = document.createElement("div");
-    item.className = "admin-item";
-    item.innerHTML = `<div>${u.name}</div>`;
-    adminList.appendChild(item);
-  });
-  adminPanel.style.display = "block";
+  document.getElementById("adminPanel").style.display = "block";
+  refreshAdminPanel();
 }
 
-function closeAdmin() { adminPanel.style.display = "none"; }
+function closeAdmin() {
+  document.getElementById("adminPanel").style.display = "none";
+}
 
+function refreshAdminPanel() {
+  const adminInfo = document.getElementById("adminInfo");
+  const adminList = document.getElementById("adminList");
+  const maxInput = document.getElementById("maxInput");
+  
+  // 更新信息
+  adminInfo.innerText = `用户数：${accounts.length}  上限：${maxAccounts}`;
+  maxInput.value = maxAccounts;
+  
+  // 清空用户列表
+  adminList.innerHTML = "";
+  
+  // 渲染用户列表（含操作按钮）
+  accounts.forEach(user => {
+    if (user.name === ADMIN.name) return; // 跳过管理员
+    
+    const item = document.createElement("div");
+    item.className = "admin-item";
+    item.innerHTML = `
+      <div>${user.name}</div>
+      <div class="admin-opt">
+        <button class="admin-btn" onclick="resetPwd('${user.name}')">重置密码</button>
+        <button class="admin-btn" onclick="deleteUser('${user.name}')">删除</button>
+      </div>
+    `;
+    adminList.appendChild(item);
+  });
+}
+
+function resetPwd(userName) {
+  if (!confirm(`确定要将【${userName}】的密码重置为0000吗？`)) return;
+  
+  const user = accounts.find(u => u.name === userName);
+  if (user) {
+    user.pwd = "0000";
+    saveAccounts();
+    refreshAdminPanel();
+    alert(`已重置【${userName}】的密码为0000！`);
+  }
+}
+
+function deleteUser(userName) {
+  if (!confirm(`确定要删除用户【${userName}】吗？删除后不可恢复！`)) return;
+  
+  accounts = accounts.filter(u => u.name !== userName);
+  saveAccounts();
+  refreshAdminPanel();
+  alert(`已删除用户【${userName}】！`);
+}
+
+// ================= 密码修改功能 =================
+function openPwd() {
+  document.getElementById("pwdModal").style.display = "flex";
+  document.getElementById("pwdTip").style.display = "none";
+}
+
+function closePwd() {
+  document.getElementById("pwdModal").style.display = "none";
+}
+
+function doChangePwd() {
+  const oldPwd = document.getElementById("oldPwd").value.trim();
+  const newPwd = document.getElementById("newPwd").value.trim();
+  const cfmPwd = document.getElementById("cfmPwd").value.trim();
+  const pwdTip = document.getElementById("pwdTip");
+  
+  // 验证
+  if (!oldPwd || !newPwd || !cfmPwd) {
+    pwdTip.innerText = "所有密码项不能为空！";
+    pwdTip.style.display = "block";
+    return;
+  }
+  
+  if (!/^\d{4}$/.test(newPwd)) {
+    pwdTip.innerText = "新密码必须是4位数字！";
+    pwdTip.style.display = "block";
+    return;
+  }
+  
+  if (newPwd !== cfmPwd) {
+    pwdTip.innerText = "两次输入的新密码不一致！";
+    pwdTip.style.display = "block";
+    return;
+  }
+  
+  // 管理员改密码
+  if (isAdmin) {
+    if (oldPwd !== ADMIN.pwd) {
+      pwdTip.innerText = "原密码错误！";
+      pwdTip.style.display = "block";
+      return;
+    }
+    
+    ADMIN.pwd = newPwd;
+    pwdTip.innerText = "管理员密码修改成功！";
+    pwdTip.style.color = "#009688";
+    pwdTip.style.display = "block";
+    
+    setTimeout(closePwd, 1500);
+    return;
+  }
+  
+  // 普通用户改密码
+  const user = accounts.find(u => u.name === me);
+  if (user.pwd !== oldPwd) {
+    pwdTip.innerText = "原密码错误！";
+    pwdTip.style.display = "block";
+    return;
+  }
+  
+  user.pwd = newPwd;
+  saveAccounts();
+  
+  pwdTip.innerText = "密码修改成功！";
+  pwdTip.style.color = "#009688";
+  pwdTip.style.display = "block";
+  
+  setTimeout(closePwd, 1500);
+}
+
+// ================= 退出登录 =================
 function logout() {
-  if (socket && !isAdmin) socket.emit("leave", { user: me });
-  me = null;
-  isAdmin = false;
-  localStorage.removeItem(STORAGE.session);
-  location.reload();
+  if (confirm("确定要退出登录吗？")) {
+    if (socket && !isAdmin) socket.emit("leave", { user: me });
+    me = null;
+    isAdmin = false;
+    localStorage.removeItem(STORAGE.session);
+    // 重置界面
+    document.getElementById("changePwdBtn").style.display = "none";
+    document.getElementById("adminBtn").style.display = "none";
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("msgInput").disabled = true;
+    document.getElementById("msgInput").placeholder = "请先登录";
+    // 显示登录弹窗
+    document.getElementById("authModal").style.display = "flex";
+    // 重置登录/注册模式为登录
+    isRegisterMode = false;
+    toggleAuth(); // 还原到登录状态
+    // 清空输入框
+    document.getElementById("username").value = "";
+    document.getElementById("pwd").value = "";
+  }
 }
 </script>
 </body>

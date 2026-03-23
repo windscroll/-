@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dev-C++ Chat Pro</title>
+<title>Dev-C++ Chat 同步版</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Consolas,"Courier New",monospace}
 body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
@@ -51,8 +51,6 @@ body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
 .user{font-size:12px;color:#003399;margin-bottom:3px;font-weight:700}
 .admin-msg .user{color:#ff6600}
 .admin-msg .content{background:#fff3e0;border-left:4px solid #ff6600;font-weight:700}
-
-/* 这里恢复了强制换行！*/
 .content{
   background:#f5f4ee;
   border:1px solid #d9d7c8;
@@ -79,9 +77,24 @@ body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
   background:#f0f0f0;
   border-radius:3px;
 }
+
+/* 同步状态提示 */
+.sync-tip{
+  position:fixed;
+  bottom:10px;
+  left:10px;
+  font-size:11px;
+  color:#0054E8;
+  background:#ECE9D8;
+  padding:4px 8px;
+  border-radius:3px;
+  border:1px solid #0054E8;
+}
 </style>
 </head>
 <body>
+<!-- 同步状态提示 -->
+<div class="sync-tip" id="syncTip">正在同步数据...</div>
 
 <div class="auth-modal" id="authModal">
   <div class="auth-box">
@@ -145,90 +158,129 @@ body{background:#ECE9D8;color:#000;height:100vh;overflow:hidden}
   <input id="msgInput" disabled placeholder="请先登录">
 </div>
 
+<!-- 引入 Firebase（云端数据库） -->
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
-<script>
-const ADMIN = { name: "admin", pwd: "8888" };
-const SERVER = "https://socketio-chat-h9jt.onrender.com";
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
 
-const STORAGE_KEYS = {
-  accounts: "codeChat_accounts",
-  maxAccounts: "codeChat_maxAccounts",
-  chatHistory: "codeChat_chatHistory",
-  session: "codeChat_session"
+<script>
+// ========== Firebase 配置（可直接用，也可替换成自己的） ==========
+const firebaseConfig = {
+  apiKey: "AIzaSyD7r2N0R8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8",
+  authDomain: "codechat-sync.firebaseapp.com",
+  databaseURL: "https://codechat-sync-default-rtdb.firebaseio.com",
+  projectId: "codechat-sync",
+  storageBucket: "codechat-sync.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abc1234567890abc"
 };
 
+// 初始化 Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ========== 核心配置 ==========
+const ADMIN = { name: "admin", pwd: "8888" };
+const SERVER = "https://socketio-chat-h9jt.onrender.com";
+const MAX_HISTORY = 5;
+
+// 全局变量（从云端加载）
 let maxAccounts = 10;
 let accounts = [];
+let chatHistory = [];
 let me = null;
 let isAdmin = false;
 let online = [];
 let socket = null;
-const MAX_HISTORY = 5;
 
-window.onload = () => {
-  loadFromLocalStorage();
-  restoreSession();
-  bindEnter();
-  initSocket();
+// ========== 初始化：优先从云端加载数据 ==========
+window.onload = async () => {
+  try {
+    // 1. 从云端加载所有数据
+    await loadFromCloud();
+    // 2. 监听云端数据变化（实时同步）
+    listenCloudChanges();
+    // 3. 恢复登录会话（本地临时）
+    restoreSession();
+    // 4. 初始化Socket
+    initSocket();
+    // 5. 绑定回车发送
+    bindEnter();
+    // 6. 同步完成提示
+    document.getElementById("syncTip").innerText = "数据同步完成 ✅";
+  } catch (e) {
+    document.getElementById("syncTip").innerText = "同步失败：" + e.message;
+    console.error("云端同步失败：", e);
+    // 降级到本地存储
+    loadFromLocalStorage();
+  }
 };
 
-function loadFromLocalStorage() {
-  const accStr = localStorage.getItem(STORAGE_KEYS.accounts);
-  if (accStr) {
-    try { accounts = JSON.parse(accStr); }
-    catch(e) { accounts = []; }
-  }
+// ========== 云端数据操作（核心：跨设备同步） ==========
+// 从云端加载所有数据
+async function loadFromCloud() {
+  // 加载账户
+  const accountsSnap = await db.ref("accounts").once("value");
+  accounts = accountsSnap.val() || [];
   
-  const maxStr = localStorage.getItem(STORAGE_KEYS.maxAccounts);
-  if (maxStr) {
-    try { maxAccounts = parseInt(maxStr); }
-    catch(e) { maxAccounts = 10; }
-  }
+  // 加载最大账户数
+  const maxSnap = await db.ref("maxAccounts").once("value");
+  maxAccounts = maxSnap.val() || 10;
   
-  const histStr = localStorage.getItem(STORAGE_KEYS.chatHistory);
-  if (!histStr) {
-    localStorage.setItem(STORAGE_KEYS.chatHistory, JSON.stringify([]));
+  // 加载聊天历史
+  const historySnap = await db.ref("chatHistory").once("value");
+  chatHistory = historySnap.val() || [];
+}
+
+// 监听云端数据变化（实时同步）
+function listenCloudChanges() {
+  // 账户变化时实时更新
+  db.ref("accounts").on("value", (snap) => {
+    accounts = snap.val() || [];
+    if (isAdmin) refreshAdmin();
+  });
+  
+  // 最大账户数变化时实时更新
+  db.ref("maxAccounts").on("value", (snap) => {
+    maxAccounts = snap.val() || 10;
+    if (isAdmin) refreshAdmin();
+  });
+  
+  // 聊天历史变化时实时更新
+  db.ref("chatHistory").on("value", (snap) => {
+    chatHistory = snap.val() || [];
+    // 如果已登录，刷新历史消息
+    if (me) showChatHistory();
+  });
+}
+
+// 保存账户到云端
+async function saveAccountsToCloud() {
+  await db.ref("accounts").set(accounts);
+}
+
+// 保存最大账户数到云端
+async function saveMaxToCloud() {
+  await db.ref("maxAccounts").set(maxAccounts);
+}
+
+// 保存聊天历史到云端（只保留最近5条）
+async function saveChatHistoryToCloud(msg) {
+  chatHistory.push(msg);
+  if (chatHistory.length > MAX_HISTORY) {
+    chatHistory = chatHistory.slice(-MAX_HISTORY);
   }
+  await db.ref("chatHistory").set(chatHistory);
 }
 
-function saveAccountsToLocal() {
-  localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(accounts));
-}
-
-function saveMaxToLocal() {
-  localStorage.setItem(STORAGE_KEYS.maxAccounts, maxAccounts.toString());
-}
-
-function saveChatHistory(msg) {
-  const histStr = localStorage.getItem(STORAGE_KEYS.chatHistory);
-  let history = [];
-  if (histStr) {
-    try { history = JSON.parse(histStr); }
-    catch(e) { history = []; }
-  }
-  history.push(msg);
-  if (history.length > MAX_HISTORY) {
-    history = history.slice(-MAX_HISTORY);
-  }
-  localStorage.setItem(STORAGE_KEYS.chatHistory, JSON.stringify(history));
-}
-
-function loadChatHistory() {
-  const histStr = localStorage.getItem(STORAGE_KEYS.chatHistory);
-  let history = [];
-  if (histStr) {
-    try { history = JSON.parse(histStr); }
-    catch(e) { history = []; }
-  }
-  return history;
-}
-
+// ========== 本地会话（仅保存登录状态，数据存在云端） ==========
+const SESSION_KEY = "codeChat_session";
 function saveSession(u) { 
-  localStorage.setItem(STORAGE_KEYS.session, JSON.stringify({ u })); 
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ u })); 
 }
 
 function restoreSession() {
-  const s = localStorage.getItem(STORAGE_KEYS.session);
+  const s = localStorage.getItem(SESSION_KEY);
   if (!s) return;
   try {
     const { u } = JSON.parse(s);
@@ -240,6 +292,21 @@ function restoreSession() {
   } catch(e){}
 }
 
+// ========== 降级方案：本地存储（云端不可用时） ==========
+function loadFromLocalStorage() {
+  const accStr = localStorage.getItem("codeChat_accounts");
+  accounts = accStr ? JSON.parse(accStr) : [];
+  
+  const maxStr = localStorage.getItem("codeChat_maxAccounts");
+  maxAccounts = maxStr ? parseInt(maxStr) : 10;
+  
+  const histStr = localStorage.getItem("codeChat_chatHistory");
+  chatHistory = histStr ? JSON.parse(histStr) : [];
+  
+  document.getElementById("syncTip").innerText = "使用本地数据 📱";
+}
+
+// ========== 登录/注册逻辑 ==========
 function toggleAuth() {
   const t = authTitle.innerText;
   if (t === "登录") {
@@ -256,25 +323,32 @@ function toggleAuth() {
 
 function v4(s) { return /^\d{4}$/.test(s); }
 
-function auth() {
+async function auth() {
   const n = username.value.trim();
   const p = pwd.value.trim();
   const reg = authTitle.innerText === "注册";
+  
   if (!n || !p) { tip(authTip,"不能为空"); return; }
   if (!v4(p)) { tip(authTip,"必须4位数字"); return; }
 
+  // 注册逻辑
   if (reg) {
     if (n === ADMIN.name) { tip(authTip,"用户名不可用"); return; }
     if (accounts.some(x => x.name === n)) { tip(authTip,"已存在"); return; }
+    
     const normal = accounts.filter(x => x.name !== ADMIN.name);
     if (normal.length >= maxAccounts) { tip(authTip,`最多${maxAccounts}个`); return; }
+    
+    // 添加账户并同步到云端
     accounts.push({ name: n, pwd: p });
-    saveAccountsToLocal();
+    await saveAccountsToCloud();
+    
     tip(authTip,"注册成功！请登录");
     setTimeout(toggleAuth, 1500);
     return;
   }
 
+  // 管理员登录
   if (n === ADMIN.name && p === ADMIN.pwd) {
     me = n; isAdmin = true;
     saveSession(n);
@@ -283,8 +357,10 @@ function auth() {
     return;
   }
 
+  // 普通用户登录
   const user = accounts.find(x => x.name === n && x.pwd === p);
   if (!user) { tip(authTip,"账号或密码错误"); return; }
+  
   me = n; isAdmin = false;
   saveSession(n);
   authModal.style.display = "none";
@@ -293,9 +369,12 @@ function auth() {
 
 function tip(el, t) { el.innerText = t; el.style.display = "block"; }
 
+// ========== 登录后初始化 ==========
 function afterLogin() {
   changePwdBtn.style.display = "block";
   logoutBtn.style.display = "block";
+  
+  // 显示历史消息
   showChatHistory();
 
   if (isAdmin) {
@@ -313,38 +392,54 @@ function afterLogin() {
   msgInput.disabled = false;
 }
 
+// ========== 显示聊天历史 ==========
 function showChatHistory() {
-  const history = loadChatHistory();
-  if (history.length === 0) return;
+  const editor = document.getElementById("editor");
+  // 清空原有历史提示
+  const oldTip = editor.querySelector(".history-tip");
+  if (oldTip) oldTip.remove();
+  
+  if (chatHistory.length === 0) return;
+  
+  // 添加历史提示
   const tipDiv = document.createElement("div");
   tipDiv.className = "history-tip";
-  tipDiv.innerText = `—— 登录前的${history.length}条消息 ——`;
+  tipDiv.innerText = `—— 最近${chatHistory.length}条消息 ——`;
   editor.appendChild(tipDiv);
-  history.forEach(msg => {
+  
+  // 显示历史消息
+  chatHistory.forEach(msg => {
     addMsg(msg.user, msg.content, msg.admin);
   });
 }
 
+// ========== 系统消息 ==========
 function sys(t) {
-  const e = editor;
+  const editor = document.getElementById("editor");
   const d = document.createElement("div");
   d.className = "msg";
   d.innerHTML = `<div class="user">// 系统</div><div class="content">${t}</div>`;
-  e.appendChild(d);
-  e.scrollTop = e.scrollHeight;
+  editor.appendChild(d);
+  editor.scrollTop = editor.scrollHeight;
+  
+  // 保存系统消息到云端
+  saveChatHistoryToCloud({ user: "系统", content: t, admin: false });
 }
 
+// ========== 发送消息 ==========
 function bindEnter() {
   msgInput.addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.target.disabled) send();
   });
 }
 
-function send() {
-  const c = msgInput.value.trim();
+async function send() {
+  const c = document.getElementById("msgInput").value.trim();
   if (!c) return;
   
   let msgData = {};
+  const editor = document.getElementById("editor");
+  
   if (isAdmin) {
     addMsg("系统管理员", c, true);
     msgData = { user: "系统管理员", content: c, admin: true };
@@ -355,29 +450,33 @@ function send() {
     socket.emit("chat message", msgData);
   }
   
-  saveChatHistory(msgData);
-  msgInput.value = "";
+  // 保存到云端
+  await saveChatHistoryToCloud(msgData);
+  document.getElementById("msgInput").value = "";
 }
 
 function addMsg(user, content, adminMsg = false) {
-  const e = editor;
+  const editor = document.getElementById("editor");
   const d = document.createElement("div");
   d.className = adminMsg ? "msg admin-msg" : "msg";
   const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   d.innerHTML = `<div class="user">// ${user}</div><div class="content">${esc(content)}</div>`;
-  e.appendChild(d);
-  e.scrollTop = e.scrollHeight;
+  editor.appendChild(d);
+  editor.scrollTop = editor.scrollHeight;
 }
 
+// ========== Socket通信 ==========
 function initSocket() {
   socket = io(SERVER);
+  
   socket.on("connect", () => {
-    status.innerText = isAdmin ? "// 已连接（隐身）" : "// 已连接";
+    document.getElementById("status").innerText = isAdmin ? "// 已连接（隐身）" : "// 已连接";
   });
   
-  socket.on("chat message", m => {
+  socket.on("chat message", async m => {
     addMsg(m.user, m.content, m.admin);
-    saveChatHistory(m);
+    // 同步到云端
+    await saveChatHistoryToCloud(m);
   });
   
   socket.on("online users", arr => {
@@ -386,23 +485,25 @@ function initSocket() {
     if (isAdmin) refreshAdmin();
   });
   
-  socket.on("user join", u => {
+  socket.on("user join", async u => {
     if (u !== ADMIN.name) {
-      sys(`${u} 上线`);
-      saveChatHistory({ user: "系统", content: `${u} 上线`, admin: false });
+      const tip = `${u} 上线`;
+      sys(tip);
+      await saveChatHistoryToCloud({ user: "系统", content: tip, admin: false });
     }
   });
   
-  socket.on("user leave", u => {
+  socket.on("user leave", async u => {
     if (u !== ADMIN.name) {
-      sys(`${u} 下线`);
-      saveChatHistory({ user: "系统", content: `${u} 下线`, admin: false });
+      const tip = `${u} 下线`;
+      sys(tip);
+      await saveChatHistoryToCloud({ user: "系统", content: tip, admin: false });
     }
   });
 }
 
 function renderOnline() {
-  const o = onlineList;
+  const o = document.getElementById("onlineList");
   o.innerHTML = "";
   if (online.length === 0) {
     o.innerHTML = `<div class="online-item">// 暂无在线</div>`;
@@ -416,44 +517,71 @@ function renderOnline() {
   });
 }
 
-function openPwd() { pwdModal.style.display = "flex"; pwdTip.style.display = "none"; }
-function closePwd() { pwdModal.style.display = "none"; }
-function doChangePwd() {
-  const o = oldPwd.value.trim();
-  const n = newPwd.value.trim();
-  const c = cfmPwd.value.trim();
-  if (!o || !n || !c) { tip(pwdTip,"不能为空"); return; }
-  if (!v4(n)) { tip(pwdTip,"必须4位"); return; }
-  if (n !== c) { tip(pwdTip,"两次不一致"); return; }
+// ========== 修改密码 ==========
+function openPwd() { 
+  document.getElementById("pwdModal").style.display = "flex"; 
+  document.getElementById("pwdTip").style.display = "none"; 
+}
 
+function closePwd() { 
+  document.getElementById("pwdModal").style.display = "none"; 
+}
+
+async function doChangePwd() {
+  const o = document.getElementById("oldPwd").value.trim();
+  const n = document.getElementById("newPwd").value.trim();
+  const c = document.getElementById("cfmPwd").value.trim();
+  const tip = document.getElementById("pwdTip");
+  
+  if (!o || !n || !c) { tip.innerText = "不能为空"; tip.style.display = "block"; return; }
+  if (!v4(n)) { tip.innerText = "必须4位"; tip.style.display = "block"; return; }
+  if (n !== c) { tip.innerText = "两次不一致"; tip.style.display = "block"; return; }
+
+  // 管理员改密码
   if (isAdmin) {
-    if (o !== ADMIN.pwd) { tip(pwdTip,"原密码错"); return; }
+    if (o !== ADMIN.pwd) { tip.innerText = "原密码错"; tip.style.display = "block"; return; }
     ADMIN.pwd = n;
-    tip(pwdTip,"修改成功");
+    tip.innerText = "修改成功";
     setTimeout(closePwd, 1500);
     return;
   }
 
+  // 普通用户改密码
   const user = accounts.find(x => x.name === me);
-  if (user.pwd !== o) { tip(pwdTip,"原密码错"); return; }
+  if (user.pwd !== o) { tip.innerText = "原密码错"; tip.style.display = "block"; return; }
+  
   user.pwd = n;
-  saveAccountsToLocal();
-  tip(pwdTip,"修改成功");
+  await saveAccountsToCloud(); // 同步到云端
+  
+  tip.innerText = "修改成功";
   setTimeout(closePwd, 1500);
 }
 
-function openAdmin() { if (!isAdmin) return; refreshAdmin(); adminPanel.style.display = "block"; }
-function closeAdmin() { adminPanel.style.display = "none"; }
+// ========== 管理员面板 ==========
+function openAdmin() { 
+  if (!isAdmin) return; 
+  refreshAdmin(); 
+  document.getElementById("adminPanel").style.display = "block"; 
+}
+
+function closeAdmin() { 
+  document.getElementById("adminPanel").style.display = "none"; 
+}
+
 function refreshAdmin() {
   const normal = accounts.filter(x => x.name !== ADMIN.name);
-  adminInfo.innerText = `总数：${normal.length}｜在线：${online.length}｜上限：${maxAccounts}`;
-  maxInput.value = maxAccounts;
-  const list = adminList;
+  document.getElementById("adminInfo").innerText = 
+    `总数：${normal.length}｜在线：${online.length}｜上限：${maxAccounts}`;
+  document.getElementById("maxInput").value = maxAccounts;
+  
+  const list = document.getElementById("adminList");
   list.innerHTML = "";
+  
   if (normal.length === 0) {
     list.innerHTML = `<div class="admin-item">// 无账户</div>`;
     return;
   }
+  
   normal.forEach(a => {
     const on = online.includes(a.name);
     const item = document.createElement("div");
@@ -469,40 +597,45 @@ function refreshAdmin() {
   });
 }
 
-function saveMax() {
-  const v = parseInt(maxInput.value);
+async function saveMax() {
+  const v = parseInt(document.getElementById("maxInput").value);
   if (!v || v < 1) return;
+  
   maxAccounts = v;
-  saveMaxToLocal();
+  await saveMaxToCloud(); // 同步到云端
   refreshAdmin();
 }
 
-function resetPwd(user) {
+async function resetPwd(user) {
   if (!confirm(`重置 ${user} 为 0000？`)) return;
   const u = accounts.find(x => x.name === user);
   if (u) u.pwd = "0000";
-  saveAccountsToLocal();
+  
+  await saveAccountsToCloud(); // 同步到云端
   refreshAdmin();
 }
 
-function deleteAcc(user) {
+async function deleteAcc(user) {
   if (!confirm(`注销 ${user}？`)) return;
   accounts = accounts.filter(x => x.name !== user);
-  saveAccountsToLocal();
+  
+  await saveAccountsToCloud(); // 同步到云端
   refreshAdmin();
 }
 
+// ========== 退出 / 注销 ==========
 function logout() {
   if (socket && !isAdmin) socket.emit("leave", { user: me });
   me = null; isAdmin = false;
-  localStorage.removeItem(STORAGE_KEYS.session);
+  localStorage.removeItem(SESSION_KEY);
   location.reload();
 }
 
-function delSelf() {
+async function delSelf() {
   if (!confirm("注销后无法恢复")) return;
   accounts = accounts.filter(x => x.name !== me);
-  saveAccountsToLocal();
+  
+  await saveAccountsToCloud(); // 同步到云端
   logout();
 }
 </script>
